@@ -1,0 +1,73 @@
+﻿@model GameBacklogWebApp.Models.Game
+
+@{
+    ViewData["Title"] = "Szczegóły gry";
+}
+
+<h1>Szczegóły gry</h1>
+
+<div>
+    <hr />
+    <dl class="row">
+        <dt class="col-sm-2">
+            @Html.DisplayNameFor(model => model.Title)
+        </dt>
+        <dd class="col-sm-10">
+            @Html.DisplayFor(model => model.Title)
+        </dd>
+
+        <dt class="col-sm-2">
+            @Html.DisplayNameFor(model => model.EstimatedPlaytimeMinutes)
+        </dt>
+        <dd class="col-sm-10">
+            @Html.DisplayFor(model => model.EstimatedPlaytimeMinutes)
+        </dd>
+
+        <dt class="col-sm-2">
+            @Html.DisplayNameFor(model => model.PlaytimeMinutes)
+        </dt>
+        <dd class="col-sm-10">
+            @Html.DisplayFor(model => model.PlaytimeMinutes)
+        </dd>
+
+        <dt class="col-sm-2">
+            @Html.DisplayNameFor(model => model.ProgressPercent)
+        </dt>
+        <dd class="col-sm-10">
+            @Html.DisplayFor(model => model.ProgressPercent)
+        </dd>
+
+        <dt class="col-sm-2">
+            @Html.DisplayNameFor(model => model.Rating)
+        </dt>
+        <dd class="col-sm-10">
+            @Html.DisplayFor(model => model.Rating)
+        </dd>
+
+        <dt class="col-sm-2">
+            @Html.DisplayNameFor(model => model.Status)
+        </dt>
+        <dd class="col-sm-10">
+            @Html.DisplayFor(model => model.Status)
+        </dd>
+
+        <dt class="col-sm-2">
+            @Html.DisplayNameFor(model => model.Platform)
+        </dt>
+        <dd class="col-sm-10">
+            <a asp-action="Index" asp-route-platformId="@Model.PlatformId">@Model.Platform?.Name</a>
+        </dd>
+
+        <dt class="col-sm-2">
+            @Html.DisplayNameFor(model => model.Genre)
+        </dt>
+        <dd class="col-sm-10">
+            <a asp-action="Index" asp-route-genreId="@Model.GenreId">@Model.Genre?.Name</a>
+        </dd>
+    </dl>
+</div>
+
+<div>
+    <a asp-action="Edit" asp-route-id="@Model?.Id">Edytuj</a> |
+    <a asp-action="Index">Powrót do listy</a>
+</div>

@@ -1,0 +1,160 @@
+﻿@model IEnumerable<GameBacklogWebApp.Models.Game>
+@using GameBacklogWebApp.Models
+
+@{
+    ViewData["Title"] = "Lista gier";
+    var currentPage = (int)(ViewData["CurrentPage"] ?? 1);
+    var totalPages = (int)(ViewData["TotalPages"] ?? 1);
+    var platforms = ViewData["Platforms"] as List<Platform>;
+    var genres = ViewData["Genres"] as List<Genre>;
+    var statuses = ViewData["Statuses"] as Array;
+}
+
+<h1>Lista gier</h1>
+
+<form method="get" class="row g-2 mb-4">
+    <div class="col-md-3">
+        <input type="text" name="searchString" class="form-control" placeholder="Szukaj po tytule" value="@Context.Request.Query["searchString"]" />
+    </div>
+    <div class="col-md-3">
+        <select name="platformId" class="form-select">
+            <option value="">-- Platforma --</option>
+            @foreach (var p in platforms)
+            {
+                <option value="@p.Id" selected="@(Context.Request.Query["platformId"] == p.Id.ToString())">@p.Name</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-3">
+        <select name="status" class="form-select">
+            <option value="">-- Status --</option>
+            @foreach (var s in statuses)
+            {
+                <option value="@s" selected="@(Context.Request.Query["status"] == s.ToString())">@s</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-3">
+        <select name="genreId" class="form-select">
+            <option value="">-- Gatunek --</option>
+            @foreach (var g in genres)
+            {
+                <option value="@g.Id" selected="@(Context.Request.Query["genreId"] == g.Id.ToString())">@g.Name</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-12 d-flex gap-2 mt-2">
+        <button type="submit" class="btn btn-primary">Filtruj</button>
+        <a asp-action="Index" class="btn btn-secondary">Resetuj</a>
+        <a asp-action="Create" class="btn btn-success">+ Dodaj grę</a>
+    </div>
+</form>
+
+<table class="table table-striped table-hover">
+    <thead>
+        <tr>
+            <th>
+                <a asp-action="Index" asp-route-sortOrder="@(ViewData["TitleSortParam"])">
+                    Tytuł
+                </a>
+            </th>
+            <th>Planowany czas</th>
+            <th>Grany czas</th>
+            <th>Postęp</th>
+            <th>Ocena</th>
+            <th>Status</th>
+            <th>Platforma</th>
+            <th>Gatunek</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model)
+        {
+            <tr>
+                <td><a asp-action="Details" asp-route-id="@item.Id">@item.Title</a></td>
+                <td>@item.EstimatedPlaytimeMinutes</td>
+                <td id="playtime-@item.Id">@item.PlaytimeMinutes</td>
+                <td id="progress-@item.Id">@item.ProgressPercent</td>
+                <td>@item.Rating</td>
+                <td id="status-cell-@item.Id">@item.Status</td>
+                <td>@item.Platform?.Name</td>
+                <td>@item.Genre?.Name</td>
+                <td>
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="openPlayModal('@item.Id', '@item.Title', @item.PlaytimeMinutes, @item.EstimatedPlaytimeMinutes)">Graj</button>
+                    <a asp-action="Edit" asp-route-id="@item.Id">Edytuj</a> |
+                    <a asp-action="Delete" asp-route-id="@item.Id">Usuń</a>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@if (totalPages > 1)
+{
+    <nav>
+        <ul class="pagination">
+            @for (int i = 1; i <= totalPages; i++)
+            {
+                <li class="page-item @(i == currentPage ? "active" : "")">
+                    <a class="page-link" asp-route-page="@i">@i</a>
+                </li>
+            }
+        </ul>
+    </nav>
+}
+
+<div class="modal fade" id="playModal" tabindex="-1" aria-labelledby="playModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="playModalLabel">Symulacja grania</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
+            </div>
+            <div class="modal-body">
+                <div><strong id="modalGameTitle"></strong></div>
+                <div>Grany czas: <span id="modalPlaytime"></span> min</div>
+                <div>Postęp: <span id="modalProgress"></span></div>
+                <button class="btn btn-success mt-3" id="playOneMinuteBtn">Dodaj minutę grania</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        let currentGameId = null;
+        let currentPlaytime = 0;
+        let currentEstimated = 0;
+
+        function openPlayModal(gameId, title, playtime, estimated) {
+            currentGameId = gameId;
+            currentPlaytime = playtime;
+            currentEstimated = estimated;
+            document.getElementById("modalGameTitle").innerText = title;
+            document.getElementById("modalPlaytime").innerText = playtime;
+            document.getElementById("modalProgress").innerText = (estimated > 0 ? Math.min(Math.round((playtime / estimated) * 100), 100) : 0) + "%";
+            var modal = new bootstrap.Modal(document.getElementById('playModal'));
+            modal.show();
+        }
+
+        document.addEventListener("DOMContentLoaded", function () {
+            document.getElementById("playOneMinuteBtn").addEventListener("click", function () {
+                fetch('/Games/Play/' + currentGameId, {
+                    method: 'POST',
+                    headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    currentPlaytime = data.newPlaytime;
+                    document.getElementById("modalPlaytime").innerText = currentPlaytime;
+                    let progress = data.newProgress + "%";
+                    document.getElementById("modalProgress").innerText = progress;
+                    document.getElementById("playtime-" + currentGameId).innerText = currentPlaytime;
+                    document.getElementById("progress-" + currentGameId).innerText = progress;
+                    document.querySelector(`#status-cell-${currentGameId}`).innerText = data.newStatus;
+                });
+            });
+        });
+    </script>
+}

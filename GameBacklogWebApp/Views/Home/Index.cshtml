@@ -1,0 +1,14 @@
+﻿@{
+    ViewData["Title"] = "Start";
+}
+
+<div class="text-center">
+    <h1 class="display-4 mb-4">Game Backlog</h1>
+    <p class="lead">Twoja osobista lista gier do ogrania.</p>
+
+    <div class="mt-5">
+        <a asp-controller="Games" asp-action="Index" class="btn btn-primary btn-lg m-2">Przeglądaj gry</a>
+        <a asp-controller="Games" asp-action="Create" class="btn btn-success btn-lg m-2">Dodaj nową grę</a>
+        <a asp-controller="Games" asp-action="Stats" class="btn btn-info btn-lg m-2">Zobacz statystyki</a>
+    </div>
+</div>

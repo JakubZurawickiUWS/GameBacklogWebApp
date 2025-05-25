@@ -1,0 +1,28 @@
+﻿@model GameBacklogWebApp.Models.GameStats
+
+@{
+    ViewData["Title"] = "Statystyki";
+}
+
+<h1>Statystyki gier</h1>
+
+<table class="table table-bordered table-striped mt-4">
+    <tr>
+        <th>Łączna liczba gier</th>
+        <td>@Model.TotalGames</td>
+    </tr>
+    <tr>
+        <th>Ukończone gry</th>
+        <td>@Model.CompletedGames</td>
+    </tr>
+    <tr>
+        <th>Średnia ocena</th>
+        <td>@Math.Round((double)Model.AverageRating, 2)</td>
+    </tr>
+    <tr>
+        <th>Łączny czas grania (minuty)</th>
+        <td>@Model.TotalPlaytime</td>
+    </tr>
+</table>
+
+<a asp-action="Index" class="btn btn-secondary">← Powrót do listy gier</a>
