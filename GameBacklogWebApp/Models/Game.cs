@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Identity;
 
 namespace GameBacklogWebApp.Models
 {
@@ -37,9 +38,18 @@ namespace GameBacklogWebApp.Models
         public int GenreId { get; set; }
         public virtual Genre? Genre { get; set; }
 
-        [Display(Name = "Postęp (%)")]
-        public string ProgressPercent =>
-            EstimatedPlaytimeMinutes == 0 ? "0%" :
-            $"{Math.Min((int)((double)PlaytimeMinutes / EstimatedPlaytimeMinutes * 100), 100)}%";
+        public string ProgressPercent
+        {
+            get
+            {
+                if (EstimatedPlaytimeMinutes == 0) return "0%";
+                var percent = (int)((double)PlaytimeMinutes / EstimatedPlaytimeMinutes * 100);
+                return $"{Math.Min(percent, 100)}%";
+            }
+        }
+
+        public string? UserId { get; set; }
+        public virtual IdentityUser? User { get; set; }
     }
+
 }

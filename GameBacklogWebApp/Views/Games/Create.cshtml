@@ -1,4 +1,7 @@
 ﻿@model GameBacklogWebApp.Models.Game
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Mvc
 
 @{
     ViewData["Title"] = "Create";
@@ -11,7 +14,7 @@
 <div class="row">
     <div class="col-md-4">
         <form asp-action="Create">
-            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+            <div asp-validation-summary="All" class="text-danger"></div>
             <div class="form-group">
                 <label asp-for="Title" class="control-label"></label>
                 <input asp-for="Title" class="form-control" />
@@ -39,11 +42,13 @@
             </div>
             <div class="form-group">
                 <label asp-for="PlatformId" class="control-label"></label>
-                <select asp-for="PlatformId" class ="form-control" asp-items="ViewBag.PlatformId"></select>
+                <select asp-for="PlatformId" class="form-control" asp-items="ViewBag.PlatformId"></select>
+                <span asp-validation-for="PlatformId" class="text-danger"></span>
             </div>
             <div class="form-group">
                 <label asp-for="GenreId" class="control-label"></label>
-                <select asp-for="GenreId" class ="form-control" asp-items="ViewBag.GenreId"></select>
+                <select asp-for="GenreId" class="form-control" asp-items="ViewBag.GenreId"></select>
+                <span asp-validation-for="GenreId" class="text-danger"></span>
             </div>
             <div class="form-group">
                 <input type="submit" value="Create" class="btn btn-primary" />

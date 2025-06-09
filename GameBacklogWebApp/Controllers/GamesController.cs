@@ -7,16 +7,21 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using GameBacklogWebApp.Data;
 using GameBacklogWebApp.Models;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Authorization;
 
 namespace GameBacklogWebApp.Controllers
 {
+    [Authorize]
     public class GamesController : Controller
     {
         private readonly GameBacklogWebAppContext _context;
+        private readonly UserManager<IdentityUser> _userManager;
 
-        public GamesController(GameBacklogWebAppContext context)
+        public GamesController(GameBacklogWebAppContext context, UserManager<IdentityUser> userManager)
         {
             _context = context;
+            _userManager = userManager;
         }
 
         private List<SelectListItem> GetStatusSelectList(GameStatus? selected = null)
@@ -35,8 +40,10 @@ namespace GameBacklogWebApp.Controllers
         public async Task<IActionResult> Index(string searchString, int? platformId, int? genreId, GameStatus? status, string sortOrder, int page = 1)
         {
             const int PageSize = 5;
+            var userId = _userManager.GetUserId(User);
 
             var query = _context.Games
+                .Where(g => g.UserId == userId)
                 .Include(g => g.Platform)
                 .Include(g => g.Genre)
                 .AsQueryable();
@@ -82,10 +89,11 @@ namespace GameBacklogWebApp.Controllers
             if (id == null)
                 return NotFound();
 
+            var userId = _userManager.GetUserId(User);
             var game = await _context.Games
                 .Include(g => g.Genre)
                 .Include(g => g.Platform)
-                .FirstOrDefaultAsync(m => m.Id == id);
+                .FirstOrDefaultAsync(m => m.Id == id && m.UserId == userId);
             if (game == null)
                 return NotFound();
 
@@ -106,6 +114,8 @@ namespace GameBacklogWebApp.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create([Bind("Id,Title,EstimatedPlaytimeMinutes,PlaytimeMinutes,Rating,Status,PlatformId,GenreId")] Game game)
         {
+            game.UserId = _userManager.GetUserId(User);
+
             if (!ModelState.IsValid)
             {
                 ViewData["GenreId"] = new SelectList(_context.Genres, "Id", "Name", game.GenreId);
@@ -119,13 +129,16 @@ namespace GameBacklogWebApp.Controllers
             return RedirectToAction(nameof(Index));
         }
 
+
         // GET: Games/Edit/5
         public async Task<IActionResult> Edit(int? id)
         {
             if (id == null)
                 return NotFound();
 
-            var game = await _context.Games.FindAsync(id);
+            var userId = _userManager.GetUserId(User);
+            var game = await _context.Games
+                .FirstOrDefaultAsync(g => g.Id == id && g.UserId == userId);
             if (game == null)
                 return NotFound();
 
@@ -140,19 +153,34 @@ namespace GameBacklogWebApp.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, [Bind("Id,Title,EstimatedPlaytimeMinutes,PlaytimeMinutes,Rating,Status,PlatformId,GenreId")] Game game)
         {
+            var userId = _userManager.GetUserId(User);
+
             if (id != game.Id)
+                return NotFound();
+
+            var gameToUpdate = await _context.Games.FirstOrDefaultAsync(g => g.Id == id && g.UserId == userId);
+            if (gameToUpdate == null)
                 return NotFound();
 
             if (ModelState.IsValid)
             {
                 try
                 {
-                    _context.Update(game);
+                    // Zaktualizuj właściwości
+                    gameToUpdate.Title = game.Title;
+                    gameToUpdate.EstimatedPlaytimeMinutes = game.EstimatedPlaytimeMinutes;
+                    gameToUpdate.PlaytimeMinutes = game.PlaytimeMinutes;
+                    gameToUpdate.Rating = game.Rating;
+                    gameToUpdate.Status = game.Status;
+                    gameToUpdate.PlatformId = game.PlatformId;
+                    gameToUpdate.GenreId = game.GenreId;
+
+                    _context.Update(gameToUpdate);
                     await _context.SaveChangesAsync();
                 }
                 catch (DbUpdateConcurrencyException)
                 {
-                    if (!GameExists(game.Id))
+                    if (!GameExists(game.Id, userId))
                         return NotFound();
                     else
                         throw;
@@ -172,10 +200,11 @@ namespace GameBacklogWebApp.Controllers
             if (id == null)
                 return NotFound();
 
+            var userId = _userManager.GetUserId(User);
             var game = await _context.Games
                 .Include(g => g.Genre)
                 .Include(g => g.Platform)
-                .FirstOrDefaultAsync(m => m.Id == id);
+                .FirstOrDefaultAsync(m => m.Id == id && m.UserId == userId);
             if (game == null)
                 return NotFound();
 
@@ -187,7 +216,8 @@ namespace GameBacklogWebApp.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(int id)
         {
-            var game = await _context.Games.FindAsync(id);
+            var userId = _userManager.GetUserId(User);
+            var game = await _context.Games.FirstOrDefaultAsync(g => g.Id == id && g.UserId == userId);
             if (game != null)
                 _context.Games.Remove(game);
 
@@ -195,14 +225,15 @@ namespace GameBacklogWebApp.Controllers
             return RedirectToAction(nameof(Index));
         }
 
-        private bool GameExists(int id)
+        private bool GameExists(int id, string userId)
         {
-            return _context.Games.Any(e => e.Id == id);
+            return _context.Games.Any(e => e.Id == id && e.UserId == userId);
         }
 
         public async Task<IActionResult> Stats()
         {
-            var games = await _context.Games.ToListAsync();
+            var userId = _userManager.GetUserId(User);
+            var games = await _context.Games.Where(g => g.UserId == userId).ToListAsync();
 
             var stats = new GameStats
             {
@@ -219,7 +250,8 @@ namespace GameBacklogWebApp.Controllers
         [HttpPost]
         public async Task<IActionResult> Play(int id)
         {
-            var game = await _context.Games.FindAsync(id);
+            var userId = _userManager.GetUserId(User);
+            var game = await _context.Games.FirstOrDefaultAsync(g => g.Id == id && g.UserId == userId);
             if (game == null)
                 return NotFound();
 

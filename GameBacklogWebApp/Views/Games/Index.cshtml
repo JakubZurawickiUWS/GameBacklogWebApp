@@ -1,5 +1,8 @@
 ﻿@model IEnumerable<GameBacklogWebApp.Models.Game>
 @using GameBacklogWebApp.Models
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Mvc
 
 @{
     ViewData["Title"] = "Lista gier";
@@ -12,7 +15,9 @@
 
 <h1>Lista gier</h1>
 
+<!-- FILTRY I TABELA -->
 <form method="get" class="row g-2 mb-4">
+    <!-- ... (zostaw swoje filtry jak wcześniej) ... -->
     <div class="col-md-3">
         <input type="text" name="searchString" class="form-control" placeholder="Szukaj po tytule" value="@Context.Request.Query["searchString"]" />
     </div>
@@ -81,7 +86,10 @@
                 <td>@item.Platform?.Name</td>
                 <td>@item.Genre?.Name</td>
                 <td>
-                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="openPlayModal('@item.Id', '@item.Title', @item.PlaytimeMinutes, @item.EstimatedPlaytimeMinutes)">Graj</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary"
+                            onclick="openPlayModal('@item.Id', '@item.Title', @item.PlaytimeMinutes, @item.EstimatedPlaytimeMinutes, @item.GenreId, '@item.Genre?.Name')">
+                        Graj
+                    </button>
                     <a asp-action="Edit" asp-route-id="@item.Id">Edytuj</a> |
                     <a asp-action="Delete" asp-route-id="@item.Id">Usuń</a>
                 </td>
@@ -104,18 +112,20 @@
     </nav>
 }
 
+<!-- MODAL -->
 <div class="modal fade" id="playModal" tabindex="-1" aria-labelledby="playModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="playModalLabel">Symulacja grania</h5>
+                <h5 class="modal-title" id="playModalLabel">Minigierka</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zamknij"></button>
             </div>
             <div class="modal-body">
                 <div><strong id="modalGameTitle"></strong></div>
                 <div>Grany czas: <span id="modalPlaytime"></span> min</div>
                 <div>Postęp: <span id="modalProgress"></span></div>
-                <button class="btn btn-success mt-3" id="playOneMinuteBtn">Dodaj minutę grania</button>
+                <hr />
+                <div id="minigame-container" class="mt-3"></div>
             </div>
         </div>
     </div>
@@ -126,35 +136,110 @@
         let currentGameId = null;
         let currentPlaytime = 0;
         let currentEstimated = 0;
+        let currentGenreId = null;
+        let currentGenreName = null;
 
-        function openPlayModal(gameId, title, playtime, estimated) {
+        function openPlayModal(gameId, title, playtime, estimated, genreId, genreName) {
             currentGameId = gameId;
             currentPlaytime = playtime;
             currentEstimated = estimated;
+            currentGenreId = genreId;
+            currentGenreName = genreName;
+
             document.getElementById("modalGameTitle").innerText = title;
             document.getElementById("modalPlaytime").innerText = playtime;
             document.getElementById("modalProgress").innerText = (estimated > 0 ? Math.min(Math.round((playtime / estimated) * 100), 100) : 0) + "%";
+            showMinigame(genreId);
             var modal = new bootstrap.Modal(document.getElementById('playModal'));
             modal.show();
         }
 
-        document.addEventListener("DOMContentLoaded", function () {
-            document.getElementById("playOneMinuteBtn").addEventListener("click", function () {
-                fetch('/Games/Play/' + currentGameId, {
-                    method: 'POST',
-                    headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    currentPlaytime = data.newPlaytime;
-                    document.getElementById("modalPlaytime").innerText = currentPlaytime;
-                    let progress = data.newProgress + "%";
-                    document.getElementById("modalProgress").innerText = progress;
-                    document.getElementById("playtime-" + currentGameId).innerText = currentPlaytime;
-                    document.getElementById("progress-" + currentGameId).innerText = progress;
-                    document.querySelector(`#status-cell-${currentGameId}`).innerText = data.newStatus;
-                });
+        function addMinuteAndUpdate() {
+            fetch('/Games/Play/' + currentGameId, {
+                method: 'POST',
+                headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() }
+            })
+            .then(response => response.json())
+            .then(data => {
+                currentPlaytime = data.newPlaytime;
+                document.getElementById("modalPlaytime").innerText = currentPlaytime;
+                let progress = data.newProgress + "%";
+                document.getElementById("modalProgress").innerText = progress;
+                document.getElementById("playtime-" + currentGameId).innerText = currentPlaytime;
+                document.getElementById("progress-" + currentGameId).innerText = progress;
+                document.querySelector(`#status-cell-${currentGameId}`).innerText = data.newStatus;
             });
-        });
+        }
+
+        function showMinigame(genreId) {
+            let minigameContainer = document.getElementById("minigame-container");
+            minigameContainer.innerHTML = "";
+
+            // RPG: Memory (kliknij 2x przycisk)
+            if (parseInt(genreId) === 1) {
+                minigameContainer.innerHTML = `
+                    <div>Znajdź parę (kliknij dwa razy!):</div>
+                    <button id="rpgBtn1" class="btn btn-info mt-2">Odsłoń kartę</button>
+                    <button id="rpgBtn2" class="btn btn-info mt-2">Odsłoń kartę</button>
+                    <span id="rpgMsg" class="ms-2"></span>
+                `;
+                let clicks = 0;
+                document.getElementById("rpgBtn1").onclick = document.getElementById("rpgBtn2").onclick = function () {
+                    clicks++;
+                    if (clicks === 2) {
+                        document.getElementById("rpgMsg").innerText = "Brawo, para znaleziona!";
+                        setTimeout(() => {
+                            addMinuteAndUpdate();
+                            document.getElementById("rpgMsg").innerText = "Dodano minutę!";
+                        }, 500);
+                    }
+                };
+            }
+            // Action: Szybka reakcja (kliknij jak najszybciej po GO)
+            else if (parseInt(genreId) === 2) {
+                minigameContainer.innerHTML = `
+                    <div>Refleksówka! Kliknij 'GO!' najszybciej jak się pojawi:</div>
+                    <button id="actionStartBtn" class="btn btn-warning mt-2">Start</button>
+                    <button id="actionGoBtn" class="btn btn-success mt-2" style="display:none;">GO!</button>
+                    <span id="actionMsg" class="ms-2"></span>
+                `;
+                document.getElementById("actionStartBtn").onclick = function () {
+                    this.disabled = true;
+                    setTimeout(() => {
+                        document.getElementById("actionGoBtn").style.display = "";
+                        let start = Date.now();
+                        document.getElementById("actionGoBtn").onclick = function () {
+                            let time = Date.now() - start;
+                            document.getElementById("actionMsg").innerText = `Twój czas: ${time} ms!`;
+                            addMinuteAndUpdate();
+                            document.getElementById("actionGoBtn").disabled = true;
+                            document.getElementById("actionGoBtn").innerText = "Dodano minutę!";
+                        };
+                    }, Math.random() * 2000 + 800);
+                };
+            }
+            // Strategy: Quiz
+            else if (parseInt(genreId) === 3) {
+                minigameContainer.innerHTML = `
+                    <div>Quiz: Ile to jest 7 x 8?</div>
+                    <input type="number" id="strategyAnswer" class="form-control mt-2" />
+                    <button id="strategyBtn" class="btn btn-primary mt-2">Sprawdź</button>
+                    <span id="strategyMsg" class="ms-2"></span>
+                `;
+                document.getElementById("strategyBtn").onclick = function () {
+                    if (document.getElementById("strategyAnswer").value == "56") {
+                        document.getElementById("strategyMsg").innerText = "Brawo!";
+                        addMinuteAndUpdate();
+                        document.getElementById("strategyMsg").innerText = "Brawo! Dodano minutę!";
+                    }
+                    else {
+                        document.getElementById("strategyMsg").innerText = "Zła odpowiedź!";
+                    }
+                }
+            }
+            else {
+                minigameContainer.innerHTML = `<p>Brak minigierki dla tego gatunku.</p>`;
+            }
+        }
     </script>
 }

@@ -1,5 +1,7 @@
 using GameBacklogWebApp.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
+using GameBacklogWebApp.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -8,12 +10,44 @@ builder.Services.AddControllersWithViews();
 builder.Services.AddDbContext<GameBacklogWebAppContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+builder.Services.AddDefaultIdentity<IdentityUser>(options => options.SignIn.RequireConfirmedAccount = false)
+    .AddEntityFrameworkStores<GameBacklogWebAppContext>();
+
+builder.Services.ConfigureApplicationCookie(options =>
+{
+    options.LoginPath = "/Identity/Account/Login";
+    options.AccessDeniedPath = "/Identity/Account/Login";
+});
+
 var app = builder.Build();
 
+// TYLKO JEDEN BLOK seedowania i scope!
 using (var scope = app.Services.CreateScope())
 {
-    var services = scope.ServiceProvider;
-    SeedData.Initialize(services);
+    var context = scope.ServiceProvider.GetRequiredService<GameBacklogWebAppContext>();
+
+    // Seeduj Platformy
+    if (!context.Platforms.Any())
+    {
+        context.Platforms.AddRange(
+            new Platform { Name = "PC" },
+            new Platform { Name = "Xbox" },
+            new Platform { Name = "PlayStation" }
+        );
+    }
+
+    // Seeduj Gatunki
+    if (!context.Genres.Any())
+    {
+        context.Genres.AddRange(
+            new Genre { Name = "RPG" },
+            new Genre { Name = "Action" },
+            new Genre { Name = "Strategy" }
+        );
+    }
+
+    // Zapisz zmiany tylko jeœli coœ doda³eœ
+    context.SaveChanges();
 }
 
 if (!app.Environment.IsDevelopment())
@@ -25,10 +59,13 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
+
+app.MapRazorPages();
 
 app.Run();

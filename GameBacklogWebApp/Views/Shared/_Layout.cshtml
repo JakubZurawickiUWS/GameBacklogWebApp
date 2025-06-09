@@ -1,4 +1,8 @@
-﻿<!DOCTYPE html>
+﻿@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Mvc
+
+<!DOCTYPE html>
 <html lang="pl">
 <head>
     <meta charset="utf-8" />
@@ -67,6 +71,19 @@
                             <a class="nav-link" asp-controller="Games" asp-action="Stats">Statystyki</a>
                         </li>
                     </ul>
+                    <div class="d-flex">
+                        @if (User.Identity.IsAuthenticated)
+                        {
+                            <form asp-area="Identity" asp-page="/Account/Logout" method="post" class="d-inline">
+                                <button type="submit" class="btn btn-link nav-link">Wyloguj</button>
+                            </form>
+                        }
+                        else
+                        {
+                            <a asp-area="Identity" asp-page="/Account/Login" class="nav-link">Zaloguj</a>
+                            <a asp-area="Identity" asp-page="/Account/Register" class="nav-link">Zarejestruj</a>
+                        }
+                    </div>
                 </div>
             </div>
         </nav>
