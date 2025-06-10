@@ -17,7 +17,6 @@
 
 <!-- FILTRY I TABELA -->
 <form method="get" class="row g-2 mb-4">
-    <!-- ... (zostaw swoje filtry jak wcześniej) ... -->
     <div class="col-md-3">
         <input type="text" name="searchString" class="form-control" placeholder="Szukaj po tytule" value="@Context.Request.Query["searchString"]" />
     </div>
@@ -141,18 +140,25 @@
 
         function openPlayModal(gameId, title, playtime, estimated, genreId, genreName) {
             currentGameId = gameId;
-            currentPlaytime = playtime;
             currentEstimated = estimated;
             currentGenreId = genreId;
             currentGenreName = genreName;
 
             document.getElementById("modalGameTitle").innerText = title;
-            document.getElementById("modalPlaytime").innerText = playtime;
-            document.getElementById("modalProgress").innerText = (estimated > 0 ? Math.min(Math.round((playtime / estimated) * 100), 100) : 0) + "%";
-            showMinigame(genreId);
-            var modal = new bootstrap.Modal(document.getElementById('playModal'));
-            modal.show();
+
+            fetch('/Games/GetPlaytime/' + gameId)
+                .then(res => res.json())
+                .then(data => {
+                    currentPlaytime = data.playtime;
+                    document.getElementById("modalPlaytime").innerText = data.playtime;
+                    document.getElementById("modalProgress").innerText = data.progress + "%";
+                    showMinigame(genreId);
+
+                    var modal = new bootstrap.Modal(document.getElementById('playModal'));
+                    modal.show();
+                });
         }
+
 
         function addMinuteAndUpdate() {
             fetch('/Games/Play/' + currentGameId, {
@@ -175,25 +181,60 @@
             let minigameContainer = document.getElementById("minigame-container");
             minigameContainer.innerHTML = "";
 
-            // RPG: Memory (kliknij 2x przycisk)
+            // RPG: Memory - znajdź 2 właściwe karty
             if (parseInt(genreId) === 1) {
+                const numCards = 6;
+                let answerIndexes = [];
+                let selectedIndexes = [];
+
+                let cardsHtml = '';
+                for (let i = 0; i < numCards; i++) {
+                    cardsHtml += `<button class="btn btn-secondary m-1" id="card${i}" disabled>?</button>`;
+                }
+
                 minigameContainer.innerHTML = `
-                    <div>Znajdź parę (kliknij dwa razy!):</div>
-                    <button id="rpgBtn1" class="btn btn-info mt-2">Odsłoń kartę</button>
-                    <button id="rpgBtn2" class="btn btn-info mt-2">Odsłoń kartę</button>
-                    <span id="rpgMsg" class="ms-2"></span>
+                    <div>Zapamiętaj które karty się podświetlą!</div>
+                    <div class="mb-2" id="cardsRow">${cardsHtml}</div>
+                    <span id="memoryMsg"></span>
                 `;
-                let clicks = 0;
-                document.getElementById("rpgBtn1").onclick = document.getElementById("rpgBtn2").onclick = function () {
-                    clicks++;
-                    if (clicks === 2) {
-                        document.getElementById("rpgMsg").innerText = "Brawo, para znaleziona!";
-                        setTimeout(() => {
-                            addMinuteAndUpdate();
-                            document.getElementById("rpgMsg").innerText = "Dodano minutę!";
-                        }, 500);
-                    }
-                };
+
+                while (answerIndexes.length < 2) {
+                    let rnd = Math.floor(Math.random() * numCards);
+                    if (!answerIndexes.includes(rnd)) answerIndexes.push(rnd);
+                }
+
+                setTimeout(() => {
+                    answerIndexes.forEach(i => {
+                        document.getElementById(`card${i}`).classList.replace('btn-secondary', 'btn-success');
+                        document.getElementById(`card${i}`).innerText = "✓";
+                    });
+                    setTimeout(() => {
+                        for (let i = 0; i < numCards; i++) {
+                            let btn = document.getElementById(`card${i}`);
+                            btn.classList.replace('btn-success', 'btn-secondary');
+                            btn.innerText = "?";
+                            btn.disabled = false;
+                            btn.onclick = function () {
+                                btn.classList.replace('btn-secondary', 'btn-info');
+                                selectedIndexes.push(i);
+                                if (selectedIndexes.length === 2) {
+                                    if (selectedIndexes.sort().toString() === answerIndexes.sort().toString()) {
+                                        document.getElementById("memoryMsg").innerText = "Brawo! Prawidłowo!";
+                                        setTimeout(() => {
+                                            addMinuteAndUpdate();
+                                            document.getElementById("memoryMsg").innerText = "Dodano minutę!";
+                                        }, 600);
+                                    } else {
+                                        document.getElementById("memoryMsg").innerText = "Źle! Spróbuj jeszcze raz.";
+                                    }
+                                    for (let j = 0; j < numCards; j++) {
+                                        document.getElementById(`card${j}`).disabled = true;
+                                    }
+                                }
+                            };
+                        }
+                    }, 1400);
+                }, 600);
             }
             // Action: Szybka reakcja (kliknij jak najszybciej po GO)
             else if (parseInt(genreId) === 2) {
@@ -218,16 +259,18 @@
                     }, Math.random() * 2000 + 800);
                 };
             }
-            // Strategy: Quiz
+            // Strategy: Losowe działanie matematyczne
             else if (parseInt(genreId) === 3) {
+                let a = Math.floor(Math.random() * 10) + 1;
+                let b = Math.floor(Math.random() * 10) + 1;
                 minigameContainer.innerHTML = `
-                    <div>Quiz: Ile to jest 7 x 8?</div>
+                    <div>Quiz: Ile to jest ${a} x ${b}?</div>
                     <input type="number" id="strategyAnswer" class="form-control mt-2" />
                     <button id="strategyBtn" class="btn btn-primary mt-2">Sprawdź</button>
                     <span id="strategyMsg" class="ms-2"></span>
                 `;
                 document.getElementById("strategyBtn").onclick = function () {
-                    if (document.getElementById("strategyAnswer").value == "56") {
+                    if (parseInt(document.getElementById("strategyAnswer").value) === a * b) {
                         document.getElementById("strategyMsg").innerText = "Brawo!";
                         addMinuteAndUpdate();
                         document.getElementById("strategyMsg").innerText = "Brawo! Dodano minutę!";

@@ -21,12 +21,10 @@ builder.Services.ConfigureApplicationCookie(options =>
 
 var app = builder.Build();
 
-// TYLKO JEDEN BLOK seedowania i scope!
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<GameBacklogWebAppContext>();
 
-    // Seeduj Platformy
     if (!context.Platforms.Any())
     {
         context.Platforms.AddRange(
@@ -36,7 +34,6 @@ using (var scope = app.Services.CreateScope())
         );
     }
 
-    // Seeduj Gatunki
     if (!context.Genres.Any())
     {
         context.Genres.AddRange(
@@ -46,7 +43,6 @@ using (var scope = app.Services.CreateScope())
         );
     }
 
-    // Zapisz zmiany tylko jeœli coœ doda³eœ
     context.SaveChanges();
 }
 

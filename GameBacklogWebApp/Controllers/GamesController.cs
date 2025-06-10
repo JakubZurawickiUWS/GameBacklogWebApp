@@ -166,7 +166,6 @@ namespace GameBacklogWebApp.Controllers
             {
                 try
                 {
-                    // Zaktualizuj właściwości
                     gameToUpdate.Title = game.Title;
                     gameToUpdate.EstimatedPlaytimeMinutes = game.EstimatedPlaytimeMinutes;
                     gameToUpdate.PlaytimeMinutes = game.PlaytimeMinutes;
@@ -275,5 +274,30 @@ namespace GameBacklogWebApp.Controllers
                     : 0
             });
         }
+
+        // GET: Games/GetPlaytime/5
+        [HttpGet]
+        public async Task<IActionResult> GetPlaytime(int id)
+        {
+            var userId = _userManager.GetUserId(User);
+            var game = await _context.Games
+                .Include(g => g.Platform)
+                .Include(g => g.Genre)
+                .FirstOrDefaultAsync(g => g.Id == id && g.UserId == userId);
+
+            if (game == null) return NotFound();
+
+            var progress = (game.EstimatedPlaytimeMinutes > 0)
+                ? Math.Min((int)Math.Round((double)game.PlaytimeMinutes / game.EstimatedPlaytimeMinutes * 100), 100)
+                : 0;
+
+            return Json(new
+            {
+                playtime = game.PlaytimeMinutes,
+                progress = progress,
+                status = game.Status.ToString()
+            });
+        }
+
     }
 }
