@@ -89,13 +89,29 @@ namespace GameBacklogWebApp.Controllers
             if (id == null)
                 return NotFound();
 
-            var userId = _userManager.GetUserId(User);
             var game = await _context.Games
                 .Include(g => g.Genre)
                 .Include(g => g.Platform)
-                .FirstOrDefaultAsync(m => m.Id == id && m.UserId == userId);
+                .FirstOrDefaultAsync(m => m.Id == id);
+
             if (game == null)
                 return NotFound();
+
+            var comments = await _context.GameComments
+                .Include(c => c.User)
+                .Where(c =>
+                    c.Game.Title == game.Title &&
+                    c.Game.PlatformId == game.PlatformId
+                )
+                .OrderByDescending(c => c.CreatedAt)
+                .ToListAsync();
+            ViewBag.Comments = comments;
+
+            var userId = _userManager.GetUserId(User);
+            var userOwnsGame = await _context.Games.AnyAsync(g =>
+                g.Title == game.Title && g.PlatformId == game.PlatformId && g.UserId == userId
+            );
+            ViewBag.UserOwnsGame = userOwnsGame;
 
             return View(game);
         }
@@ -112,9 +128,17 @@ namespace GameBacklogWebApp.Controllers
         // POST: Games/Create
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create([Bind("Id,Title,EstimatedPlaytimeMinutes,PlaytimeMinutes,Rating,Status,PlatformId,GenreId")] Game game)
+        public async Task<IActionResult> Create([Bind("Id,Title,EstimatedPlaytimeMinutes,PlaytimeMinutes,Rating,Status,PlatformId,GenreId,Price")] Game game)
         {
             game.UserId = _userManager.GetUserId(User);
+            game.ApprovalStatus = GameApprovalStatus.Pending;
+            game.OriginalCreatorId = game.UserId;
+
+            bool exists = await _context.Games.AnyAsync(g => g.Title.ToLower() == game.Title.ToLower());
+            if (exists)
+            {
+                ModelState.AddModelError("Title", "Gra o takiej nazwie już istnieje!");
+            }
 
             if (!ModelState.IsValid)
             {
@@ -126,9 +150,9 @@ namespace GameBacklogWebApp.Controllers
 
             _context.Add(game);
             await _context.SaveChangesAsync();
+            TempData["Message"] = "Gra została zgłoszona i czeka na akceptację admina!";
             return RedirectToAction(nameof(Index));
         }
-
 
         // GET: Games/Edit/5
         public async Task<IActionResult> Edit(int? id)
@@ -137,10 +161,16 @@ namespace GameBacklogWebApp.Controllers
                 return NotFound();
 
             var userId = _userManager.GetUserId(User);
-            var game = await _context.Games
-                .FirstOrDefaultAsync(g => g.Id == id && g.UserId == userId);
+            var game = await _context.Games.FirstOrDefaultAsync(g => g.Id == id && g.UserId == userId);
             if (game == null)
                 return NotFound();
+
+            if (game.OriginalCreatorId != userId)
+            {
+                TempData["Error"] = "Nie możesz edytować gry dodanej z katalogu!";
+                return RedirectToAction(nameof(Index));
+            }
+
 
             ViewData["GenreId"] = new SelectList(_context.Genres, "Id", "Name", game.GenreId);
             ViewData["PlatformId"] = new SelectList(_context.Platforms, "Id", "Name", game.PlatformId);
@@ -151,7 +181,7 @@ namespace GameBacklogWebApp.Controllers
         // POST: Games/Edit/5
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(int id, [Bind("Id,Title,EstimatedPlaytimeMinutes,PlaytimeMinutes,Rating,Status,PlatformId,GenreId")] Game game)
+        public async Task<IActionResult> Edit(int id, [Bind("Id,Title,EstimatedPlaytimeMinutes,PlaytimeMinutes,Rating,Status,PlatformId,GenreId,Price")] Game game)
         {
             var userId = _userManager.GetUserId(User);
 
@@ -162,17 +192,24 @@ namespace GameBacklogWebApp.Controllers
             if (gameToUpdate == null)
                 return NotFound();
 
+            if (gameToUpdate.OriginalCreatorId != userId)
+            {
+                TempData["Error"] = "Nie możesz edytować gry dodanej z katalogu!";
+                return RedirectToAction(nameof(Index));
+            }
+
             if (ModelState.IsValid)
             {
                 try
                 {
-                    gameToUpdate.Title = game.Title;
+                    //gameToUpdate.Title = game.Title;
                     gameToUpdate.EstimatedPlaytimeMinutes = game.EstimatedPlaytimeMinutes;
                     gameToUpdate.PlaytimeMinutes = game.PlaytimeMinutes;
                     gameToUpdate.Rating = game.Rating;
                     gameToUpdate.Status = game.Status;
                     gameToUpdate.PlatformId = game.PlatformId;
                     gameToUpdate.GenreId = game.GenreId;
+                    gameToUpdate.ApprovalStatus = GameApprovalStatus.Pending;
 
                     _context.Update(gameToUpdate);
                     await _context.SaveChangesAsync();
@@ -262,6 +299,22 @@ namespace GameBacklogWebApp.Controllers
             if (game.PlaytimeMinutes >= game.EstimatedPlaytimeMinutes && game.Status != GameStatus.Completed)
                 game.Status = GameStatus.Completed;
 
+            var wallet = await _context.UserWallets.FindAsync(userId);
+            if (wallet == null)
+            {
+                wallet = new UserWallet { UserId = userId, Currency = 0 };
+                _context.UserWallets.Add(wallet);
+            }
+
+            var rand = new Random();
+            bool gainedCoin = rand.NextDouble() < 0.5;
+            int coinsGained = 0;
+            if (gainedCoin)
+            {
+                wallet.Currency += 1;
+                coinsGained = 1;
+            }
+
             _context.Update(game);
             await _context.SaveChangesAsync();
 
@@ -271,7 +324,9 @@ namespace GameBacklogWebApp.Controllers
                 newStatus = game.Status.ToString(),
                 newProgress = game.EstimatedPlaytimeMinutes > 0
                     ? Math.Min((int)((double)game.PlaytimeMinutes / game.EstimatedPlaytimeMinutes * 100), 100)
-                    : 0
+                    : 0,
+                coinsGained = coinsGained,
+                newCurrency = wallet.Currency
             });
         }
 
@@ -297,6 +352,176 @@ namespace GameBacklogWebApp.Controllers
                 progress = progress,
                 status = game.Status.ToString()
             });
+        }
+
+        // W GamesController.cs
+        public async Task<IActionResult> Catalog()
+        {
+            var games = await _context.Games
+                .Include(g => g.Platform)
+                .Where(g => g.ApprovalStatus == GameApprovalStatus.Approved)
+                .ToListAsync();
+
+            var userId = _userManager.GetUserId(User);
+            var wallet = await _context.UserWallets.FindAsync(userId);
+            ViewData["UserCurrency"] = wallet?.Currency ?? 0;
+
+            var uniqueGames = games
+                .GroupBy(g => new { g.Title, g.PlatformId })
+                .Select(g => g.First())
+                .ToList();
+
+            return View(uniqueGames);
+        }
+
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AddToLibrary(int gameId)
+        {
+            var user = await _userManager.GetUserAsync(User);
+            if (user == null)
+                return Unauthorized();
+
+            var game = await _context.Games.FindAsync(gameId);
+            if (game == null)
+                return NotFound();
+
+            bool alreadyExists = await _context.Games.AnyAsync(g =>
+                g.UserId == user.Id &&
+                g.Title == game.Title &&
+                g.PlatformId == game.PlatformId
+            );
+            if (alreadyExists)
+            {
+                TempData["Error"] = "Masz już tę grę w swojej bibliotece!";
+                return RedirectToAction("Catalog");
+            }
+
+            var newGame = new Game
+            {
+                Title = game.Title,
+                EstimatedPlaytimeMinutes = game.EstimatedPlaytimeMinutes,
+                PlaytimeMinutes = 0,
+                Rating = 0,
+                Status = 0,
+                PlatformId = game.PlatformId,
+                GenreId = game.GenreId,
+                UserId = user.Id,
+                ApprovalStatus = GameApprovalStatus.Approved,
+                OriginalCreatorId = game.UserId,
+                Price = game.Price
+            };
+    
+
+            _context.Games.Add(newGame);
+            await _context.SaveChangesAsync();
+
+            TempData["Message"] = "Gra została dodana do Twojej biblioteki!";
+            return RedirectToAction("Catalog");
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Buy(int gameId)
+        {
+            var userId = _userManager.GetUserId(User);
+            var wallet = await _context.UserWallets.FindAsync(userId);
+            if (wallet == null)
+            {
+                wallet = new UserWallet { UserId = userId, Currency = 0 };
+                _context.UserWallets.Add(wallet);
+                await _context.SaveChangesAsync();
+            }
+
+            var game = await _context.Games.FindAsync(gameId);
+            if (game == null)
+                return NotFound();
+
+            bool alreadyExists = await _context.Games.AnyAsync(g =>
+                g.UserId == userId &&
+                g.Title == game.Title &&
+                g.PlatformId == game.PlatformId
+            );
+            if (alreadyExists)
+            {
+                TempData["Error"] = "Masz już tę grę w swojej bibliotece!";
+                return RedirectToAction("Catalog");
+            }
+
+            if (wallet.Currency < game.Price)
+            {
+                TempData["Error"] = "Nie masz wystarczającej ilości waluty!";
+                return RedirectToAction("Catalog");
+            }
+
+            wallet.Currency -= game.Price;
+
+            if (!string.IsNullOrEmpty(game.OriginalCreatorId))
+            {
+                var creatorWallet = await _context.UserWallets.FindAsync(game.OriginalCreatorId);
+                if (creatorWallet == null)
+                {
+                    creatorWallet = new UserWallet { UserId = game.OriginalCreatorId, Currency = 0 };
+                    _context.UserWallets.Add(creatorWallet);
+                }
+                int reward = (int)(game.Price * 0.7);
+                creatorWallet.Currency += reward;
+            }
+
+            var newGame = new Game
+            {
+                Title = game.Title,
+                EstimatedPlaytimeMinutes = game.EstimatedPlaytimeMinutes,
+                PlaytimeMinutes = 0,
+                Rating = 0,
+                Status = 0,
+                PlatformId = game.PlatformId,
+                GenreId = game.GenreId,
+                UserId = userId,
+                ApprovalStatus = GameApprovalStatus.Approved,
+                OriginalCreatorId = game.UserId,
+                Price = game.Price
+            };
+
+            _context.Games.Add(newGame);
+            await _context.SaveChangesAsync();
+
+            TempData["Message"] = "Gra została kupiona i dodana do Twojej biblioteki!";
+            return RedirectToAction("Catalog");
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AddComment(int gameId, string content)
+        {
+            var userId = _userManager.GetUserId(User);
+
+            bool ownsGame = await _context.Games.AnyAsync(g => g.Id == gameId && g.UserId == userId);
+
+            if (!ownsGame)
+            {
+                TempData["Error"] = "Możesz komentować tylko gry, które posiadasz!";
+                return RedirectToAction("Details", new { id = gameId });
+            }
+
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                TempData["Error"] = "Komentarz nie może być pusty!";
+                return RedirectToAction("Details", new { id = gameId });
+            }
+
+            var comment = new GameComment
+            {
+                UserId = userId,
+                GameId = gameId,
+                Content = content
+            };
+            _context.GameComments.Add(comment);
+            await _context.SaveChangesAsync();
+
+            TempData["Message"] = "Komentarz dodany!";
+            return RedirectToAction("Details", new { id = gameId });
         }
 
     }

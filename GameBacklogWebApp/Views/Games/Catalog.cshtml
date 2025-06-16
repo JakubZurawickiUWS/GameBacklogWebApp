@@ -1,0 +1,52 @@
+﻿@model IEnumerable<GameBacklogWebApp.Models.Game>
+@{
+    ViewData["Title"] = "Katalog zaakceptowanych gier";
+    int UserCurrency = ViewData["UserCurrency"] != null ? (int)ViewData["UserCurrency"] : 0;
+}
+
+<h1>Katalog zaakceptowanych gier</h1>
+
+@if (TempData["Message"] != null)
+{
+    <div class="alert alert-success">@TempData["Message"]</div>
+}
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger">@TempData["Error"]</div>
+}
+
+<p>Twoja waluta: <b>@UserCurrency</b></p>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Tytuł gry</th>
+            <th>Platforma</th>
+            <th>Cena</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var game in Model)
+        {
+            <tr>
+                <td>
+                    <a asp-action="Details" asp-controller="Games" asp-route-id="@game.Id">
+                        @game.Title
+                    </a>
+                </td>
+                <td>@game.Platform?.Name</td>
+                <td>@game.Price</td>
+                <td>
+                    <form asp-action="Buy" asp-controller="Games" method="post">
+                        <input type="hidden" name="gameId" value="@game.Id" />
+                        <button type="submit" class="btn btn-success btn-sm"
+                        @(UserCurrency < game.Price ? "disabled" : "")>
+                            Kup grę
+                        </button>
+                    </form>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>

@@ -14,5 +14,8 @@ namespace GameBacklogWebApp.Data
         public DbSet<Game> Games { get; set; }
         public DbSet<Genre> Genres { get; set; }
         public DbSet<Platform> Platforms { get; set; }
+        public DbSet<UserWallet> UserWallets { get; set; }
+        public DbSet<GameComment> GameComments { get; set; }
+
     }
 }

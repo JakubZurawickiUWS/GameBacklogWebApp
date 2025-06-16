@@ -53,6 +53,9 @@
 </head>
 <body>
     <header>
+        @{
+            int userCurrency = ViewData["UserCurrency"] != null ? (int)ViewData["UserCurrency"] : 0;
+        }
         <nav class="navbar navbar-expand-sm navbar-dark">
             <div class="container-fluid">
                 <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Index">GameBacklog</a>
@@ -70,6 +73,26 @@
                         <li class="nav-item">
                             <a class="nav-link" asp-controller="Games" asp-action="Stats">Statystyki</a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link" asp-controller="Games" asp-action="Catalog">Katalog gier</a>
+                        </li>
+                        @if (User.IsInRole("Admin"))
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link" asp-controller="Admin" asp-action="PendingGames">Panel admina</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" asp-controller="Admin" asp-action="Stats">Statystyki admina</a>
+                            </li>
+                        }
+                        @if (User.Identity.IsAuthenticated)
+                        {
+                            <li class="nav-item ms-2 align-self-center">
+                                <span class="nav-link" style="font-weight: bold;">
+                                    💰 @userCurrency
+                                </span>
+                            </li>
+                        }
                     </ul>
                     <div class="d-flex">
                         @if (User.Identity.IsAuthenticated)
@@ -95,6 +118,13 @@
         </main>
     </div>
 
+    <div style="position:fixed;bottom:32px;right:32px;z-index:9999;display:flex;align-items:center;">
+        <audio id="bg-music" src="~/audio/background.mp3" autoplay loop></audio>
+        <button id="music-toggle" class="btn btn-outline-secondary btn-sm ms-2" title="Włącz/Wyłącz muzykę">
+            <span id="music-icon">🎵</span>
+        </button>
+    </div>
+
     <footer class="footer text-center text-muted border-top">
         <div class="container">
             &copy; 2025 - GameBacklogWebApp
@@ -105,5 +135,38 @@
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
+
+    <script>
+        const audio = document.getElementById("bg-music");
+        const btn = document.getElementById("music-toggle");
+        const icon = document.getElementById("music-icon");
+
+        let muted = localStorage.getItem("bgMusicMuted") === "true";
+        audio.muted = muted;
+
+        audio.addEventListener('loadedmetadata', function () {
+            let pos = localStorage.getItem('music_pos');
+            if (pos && !isNaN(pos)) {
+                audio.currentTime = parseFloat(pos);
+            }
+            if (!audio.muted) audio.play();
+        });
+
+        audio.addEventListener('timeupdate', function () {
+            localStorage.setItem('music_pos', audio.currentTime);
+        });
+
+        btn.onclick = function () {
+            audio.muted = !audio.muted;
+            muted = audio.muted;
+            updateIcon();
+            localStorage.setItem("bgMusicMuted", muted ? "true" : "false");
+        };
+
+        function updateIcon() {
+            icon.innerText = muted ? "🔇" : "🎵";
+        }
+        updateIcon();
+    </script>
 </body>
 </html>

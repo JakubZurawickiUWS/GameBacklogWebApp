@@ -1,0 +1,37 @@
+﻿@model IEnumerable<GameBacklogWebApp.Models.Game>
+@{
+    ViewData["Title"] = "Oczekujące gry";
+}
+
+<h1>Oczekujące gry do akceptacji</h1>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Tytuł</th>
+            <th>Gatunek</th>
+            <th>Platforma</th>
+            <th>Akcja</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var game in Model)
+        {
+            <tr>
+                <td>@game.Title</td>
+                <td>@game.Genre?.Name</td>
+                <td>@game.Platform?.Name</td>
+                <td>
+                    <form asp-action="Approve" method="post" style="display:inline">
+                        <input type="hidden" name="id" value="@game.Id" />
+                        <button class="btn btn-success" type="submit">Akceptuj</button>
+                    </form>
+                    <form asp-action="Reject" method="post" style="display:inline">
+                        <input type="hidden" name="id" value="@game.Id" />
+                        <button class="btn btn-danger" type="submit">Odrzuć</button>
+                    </form>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>

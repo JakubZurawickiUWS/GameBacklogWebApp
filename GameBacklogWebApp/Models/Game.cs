@@ -10,6 +10,13 @@ namespace GameBacklogWebApp.Models
         Completed
     }
 
+    public enum GameApprovalStatus
+    {
+        Pending,
+        Approved,
+        Rejected
+    }
+
     public class Game
     {
         public int Id { get; set; }
@@ -48,8 +55,15 @@ namespace GameBacklogWebApp.Models
             }
         }
 
+        [Display(Name = "Cena")]
+        public int Price { get; set; }
+
         public string? UserId { get; set; }
         public virtual IdentityUser? User { get; set; }
-    }
 
+        public GameApprovalStatus ApprovalStatus { get; set; } = GameApprovalStatus.Pending;
+
+        public string? OriginalCreatorId { get; set; }
+
+    }
 }

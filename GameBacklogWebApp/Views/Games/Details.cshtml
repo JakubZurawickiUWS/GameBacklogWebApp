@@ -3,8 +3,19 @@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Mvc
 
+@inject UserManager<IdentityUser> UserManager
+
 @{
     ViewData["Title"] = "Szczegóły gry";
+}
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger">@TempData["Error"]</div>
+}
+@if (TempData["Message"] != null)
+{
+    <div class="alert alert-success">@TempData["Message"]</div>
 }
 
 <h1>Szczegóły gry</h1>
@@ -67,7 +78,55 @@
         <dd class="col-sm-10">
             <a asp-action="Index" asp-route-genreId="@Model.GenreId">@Model.Genre?.Name</a>
         </dd>
+
+        <dt class="col-sm-2">
+            @Html.DisplayNameFor(model => model.Price)
+        </dt>
+        <dd class="col-sm-10">
+            @Html.DisplayFor(model => model.Price)
+        </dd>
+
     </dl>
+
+    <h3>Komentarze</h3>
+    @if (ViewBag.Comments != null && ((List<GameBacklogWebApp.Models.GameComment>)ViewBag.Comments).Count > 0)
+    {
+        <ul class="list-group mb-3">
+            @foreach (var comment in (List<GameBacklogWebApp.Models.GameComment>)ViewBag.Comments)
+            {
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>@comment.User?.UserName</strong>: @comment.Content
+                        <div class="text-muted" style="font-size:smaller;">@comment.CreatedAt.ToString("g")</div>
+                    </div>
+                    @if (User.IsInRole("Admin"))
+                    {
+                        <form asp-action="DeleteComment" asp-controller="Admin" method="post" class="ms-2" style="display:inline;">
+                            <input type="hidden" name="id" value="@comment.Id" />
+                            <input type="hidden" name="returnGameId" value="@Model.Id" />
+                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Na pewno usunąć komentarz?')">Usuń</button>
+                        </form>
+                    }
+                </li>
+            }
+        </ul>
+    }
+    else
+    {
+        <p>Brak komentarzy.</p>
+    }
+
+    @if (User.Identity.IsAuthenticated && ViewBag.UserOwnsGame == true)
+    {
+        <form asp-action="AddComment" asp-controller="Games" method="post" class="mb-4">
+            <input type="hidden" name="gameId" value="@Model.Id" />
+            <div class="mb-2">
+                <textarea name="content" class="form-control" rows="3" maxlength="1000" placeholder="Dodaj swój komentarz..."></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Dodaj komentarz</button>
+        </form>
+    }
+
 </div>
 
 <div>
